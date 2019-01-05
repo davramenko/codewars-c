@@ -246,6 +246,53 @@ void str_append(PSTRING s, char* src) {
 	strncat(s->str, src, len2);
 }
 
+void str_append_char(PSTRING s, char ch) {
+	int len;
+
+	if (s == NULL || ch == 0)
+		return;
+	if (s->str == NULL)
+		str_init(s, 0);
+	len = (int)strlen(s->str);
+	if ((len + 1) > s->cap) {
+		int tcap = s->cap * 2;
+		char* buff;
+
+		buff = malloc(tcap);
+		memset(buff, 0, tcap);
+		strncpy(buff, s->str, len);
+		free(s->str);
+		s->str = buff;
+		s->cap = tcap;
+	}
+	s->str[len] = ch;
+}
+
+void str_append_char_cnt(PSTRING s, char ch, int cnt) {
+	int len, i;
+
+	if (s == NULL || ch == 0 || cnt <= 0)
+		return;
+	if (s->str == NULL)
+		str_init(s, 0);
+	len = (int)strlen(s->str);
+	if ((len + cnt + 1) > s->cap) {
+		int tcap = s->cap * 2;
+		char* buff;
+
+		if ((len + cnt + 1) > tcap)
+			tcap = 2 * (len + cnt + 1);
+		buff = malloc(tcap);
+		memset(buff, 0, tcap);
+		strncpy(buff, s->str, len);
+		free(s->str);
+		s->str = buff;
+		s->cap = tcap;
+	}
+	for (i = 0; i < cnt; i++)
+		s->str[len++] = ch;
+}
+
 void str_append_format(PSTRING s, char* format, ...) {
 	int len1, len2;
 	va_list args;
