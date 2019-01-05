@@ -1,10 +1,15 @@
-#pragma once
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <string.h>
+#include <ctype.h>
+
+// Sum by Factors
+
+// #include "vlib.h"
+
+// ****************************************************************************************************
 
 #pragma warning(disable : 4996)
 
@@ -16,15 +21,6 @@ struct int_vect {
 
 typedef struct int_vect IV;
 typedef struct int_vect* PIV;
-
-struct long_vect {
-	int cap;
-	int len;
-	long long* vect;
-};
-
-typedef struct long_vect LV;
-typedef struct long_vect* PLV;
 
 #define sv_cnt(v) (v.len)
 #define pv_cnt(v) (v->len)
@@ -90,40 +86,6 @@ void iv_add(PIV v, int item) {
 	v->len++;
 }
 
-void lv_init(PLV v, int init_cap) {
-	if (v == NULL)
-		return;
-	v->len = 0;
-	v->cap = init_cap;
-	if (v->cap <= 0)
-		v->cap = 16;
-	v->vect = calloc(v->cap, sizeof(long long));
-}
-
-void lv_free(PLV v) {
-	if (v == NULL || v->vect == NULL)
-		return;
-	free(v->vect);
-	v->vect = NULL;
-}
-
-void lv_add(PLV v, long long item) {
-	if (v == NULL)
-		return;
-	if (v->vect == NULL)
-		lv_init(v, 0);
-	if (v->len >= v->cap) {
-		int tcap = v->cap * 2;
-		long long* buff = calloc(tcap, sizeof(long long));
-		memcpy(buff, v->vect, sizeof(long long) * v->cap);
-		free(v->vect);
-		v->vect = buff;
-		v->cap = tcap;
-	}
-	v->vect[v->len] = item;
-	v->len++;
-}
-
 void lst_init(PLIST l, int init_cap) {
 	if (l == NULL)
 		return;
@@ -164,33 +126,6 @@ void lst_add(PLIST l, void* item) {
 	l->len++;
 }
 
-void* lst_get(PLIST l, int index) {
-	if (l == NULL || index < 0)
-		return NULL;
-	if (l->ptr == NULL)
-		lst_init(l, 0);
-	if (index >= l->len)
-		return NULL;
-	return l->ptr[index];
-}
-
-void* lst_rm_at(PLIST l, int index) {
-	void* res;
-	int i;
-
-	if (l == NULL || index < 0)
-		return NULL;
-	if (l->ptr == NULL)
-		lst_init(l, 0);
-	if (index >= l->len)
-		return NULL;
-	res = l->ptr[index];
-	for (i = index + 1; i < l->len; i++)
-		l->ptr[i - 1] = l->ptr[i];
-	l->len--;
-	return res;
-}
-
 void str_init(PSTRING s, int init_cap) {
 	if (s == NULL)
 		return;
@@ -205,97 +140,6 @@ void str_free(PSTRING s) {
 	if (s == NULL || s->str == NULL)
 		return;
 	free(s->str);
-}
-
-void str_clear(PSTRING s) {
-	if (s == NULL)
-		return;
-	if (s->str == NULL) {
-		str_init(s, 0);
-	} else {
-		memset(s->str, 0, s->cap);
-	}
-}
-
-size_t str_len(PSTRING s) {
-	if (s == NULL)
-		return 0;
-	if (s->str == NULL) {
-		str_init(s, 0);
-	}
-	return strlen(s->str);
-}
-
-void str_append(PSTRING s, char* src) {
-	int len1, len2;
-
-	if (s == NULL || src == NULL)
-		return;
-	if (s->str == NULL)
-		str_init(s, 0);
-	len1 = (int)strlen(s->str);
-	len2 = (int)strlen(src);
-	if ((len1 + len2 + 1) > s->cap) {
-		int tcap = s->cap * 2;
-		char* buff;
-
-		if ((len1 + len2 + 1) > tcap)
-			tcap = 2 * (len1 + len2 + 1);
-		buff = malloc(tcap);
-		memset(buff, 0, tcap);
-		strncpy(buff, s->str, len1);
-		free(s->str);
-		s->str = buff;
-		s->cap = tcap;
-	}
-	strncat(s->str, src, len2);
-}
-
-void str_append_char(PSTRING s, char ch) {
-	int len;
-
-	if (s == NULL || ch == 0)
-		return;
-	if (s->str == NULL)
-		str_init(s, 0);
-	len = (int)strlen(s->str);
-	if ((len + 1) > s->cap) {
-		int tcap = s->cap * 2;
-		char* buff;
-
-		buff = malloc(tcap);
-		memset(buff, 0, tcap);
-		strncpy(buff, s->str, len);
-		free(s->str);
-		s->str = buff;
-		s->cap = tcap;
-	}
-	s->str[len] = ch;
-}
-
-void str_append_char_cnt(PSTRING s, char ch, int cnt) {
-	int len, i;
-
-	if (s == NULL || ch == 0 || cnt <= 0)
-		return;
-	if (s->str == NULL)
-		str_init(s, 0);
-	len = (int)strlen(s->str);
-	if ((len + cnt + 1) > s->cap) {
-		int tcap = s->cap * 2;
-		char* buff;
-
-		if ((len + cnt + 1) > tcap)
-			tcap = 2 * (len + cnt + 1);
-		buff = malloc(tcap);
-		memset(buff, 0, tcap);
-		strncpy(buff, s->str, len);
-		free(s->str);
-		s->str = buff;
-		s->cap = tcap;
-	}
-	for (i = 0; i < cnt; i++)
-		s->str[len++] = ch;
 }
 
 void str_append_format(PSTRING s, char* format, ...) {
@@ -330,4 +174,114 @@ void str_append_format(PSTRING s, char* format, ...) {
 	va_start(args, format);
 	vsnprintf(&(s->str[len1]), len2 + 1, format, args);
 	va_end(args);
+}
+
+// ****************************************************************************************************
+
+struct fact {
+	int prime;
+	int nexp;
+};
+
+#define pfact(p) ((struct fact*)p)
+
+struct fact* fact_new(int prime, int nexp) {
+	struct fact* pfact = malloc(sizeof(struct fact));
+	pfact->prime = prime;
+	pfact->nexp = nexp;
+	return pfact;
+}
+
+PLIST factorize(int num) {
+	PLIST res = malloc(sizeof(LIST));
+	int i, rest = num;
+
+	lst_init(res, 0);
+	if (num <= 1) {
+		lst_add(res, fact_new(1, 1));
+	} else {
+		for (i = 2; i <= num; i++) {
+			int n = 0;
+			while (rest % i == 0) {
+				n++;
+				rest /= i;
+			}
+			if (n)
+				lst_add(res, fact_new(i, n));
+			if (rest <= 1)
+				break;
+		}
+	}
+	return res;
+}
+
+static int int_cmp(const void *a, const void *b)  { 
+	const int *ia = (const int *)a;
+	const int *ib = (const int *)b;
+	return *ia  - *ib; 
+} 
+// In C return a char *
+char* sumOfDivided(int* lst, int l) {
+	int i, j, k;
+	PLIST pl;
+	IV v;
+	STRING s;
+
+	if (l == 0)
+		return "";
+	iv_init(&v, 0);
+	for (i = 0; i < l; i++) {
+		pl = factorize((int)abs(lst[i]));
+		for (j = 0; j < plst_cnt(pl); j++) {
+			bool f = false;
+			for (k = 0; k < sv_cnt(v); k++) {
+				if (pfact(plst_item(pl, j))->prime == sv_item(v, k)) {
+					f = true;
+					break;
+				}
+			}
+			if (!f)
+				iv_add(&v, pfact(plst_item(pl, j))->prime);
+		}
+		lst_free(pl, true);
+		free(pl);
+	}
+	lst_free(pl, true);
+	qsort(v.vect, v.len, sizeof(int), int_cmp);
+	str_init(&s, 0);
+	for (i = 0; i < sv_cnt(v); i++) {
+		int prime = sv_item(v, i);
+		int sum = 0;
+		for (j = 0; j < l; j++) {
+			if (lst[j] % prime == 0)
+				sum += lst[j];
+		}
+		str_append_format(&s, "(%d %d)", prime, sum);
+	}
+	iv_free(&v);
+	return sstr(s);
+}
+
+int main() {
+	{
+		int d1[2] = {12, 15};
+		char* sol1 = "(2 12)(3 27)(5 15)";
+		char* r = sumOfDivided(d1, 2);
+		printf("%s\n%s\n\n", sol1, r);
+		free(r);
+	}
+	{
+		int d1[5] = {15,21,24,30,45};
+		char* sol1  = "(2 54)(3 135)(5 90)(7 21)";
+		char* r = sumOfDivided(d1, 5);
+		printf("%s\n%s\n\n", sol1, r);
+		free(r);
+	}
+	{
+		int d1[10] = {107, 158, 204, 100, 118, 123, 126, 110, 116, 100};
+		char* sol1 = "(2 1032)(3 453)(5 310)(7 126)(11 110)(17 204)(29 116)(41 123)(59 118)(79 158)(107 107)";
+		char* r = sumOfDivided(d1, 10);
+		printf("%s\n%s\n\n", sol1, r);
+		free(r);
+	}
 }
