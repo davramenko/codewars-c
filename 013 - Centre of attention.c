@@ -8,142 +8,121 @@
 typedef struct { unsigned *pixels; unsigned width, height; } Image;
 typedef struct { unsigned *values; unsigned size; } unsigned_array;
 
-
-//unsigned border_disance(int i, int j, Image image) {
-//	unsigned dist[3];
-//	unsigned dmin, k;
-//
-//	dist[0] = image.height - i;
-//	dist[1] = j + 1;
-//	dist[2] = image.width - j;
-//	dmin = i + 1;
-//	for (k = 1; k < 3; k++)
-//		if (dmin > dist[k])
-//			dmin = dist[k];
-//	return dmin;
-//}
-
 #if !defined(min)
 #define min(a, b) ((a < b) ? a : b)
 #endif
-#define border_disance(i, j, img) (min(i + 1, min(image.height - i, min(j + 1, image.width - j))))
-#define pix(img, row, col) (img.pixels[row *  img.width + col])
-#define uabs(v) (((((unsigned)v) & 0x80000000U)) ? (-(v)) : (v))
-#define dwidth(col, j) (uabs(col - j))
-#define dheight(row, i) (uabs(row - i))
-#define dval(row, col, i, j) (dwidth(col, j) + dheight(row, i))
-#define set_dmin(dmin, row, col, i, j) ((dmin == 0) ? (dmin = dval(row, col, i, j)) : ((dmin > dval(row, col, i, j)) ? (dmin = dval(row, col, i, j)) : 0))
+#define pix(img, row, col) (img.pixels[(row) * img.width + (col)])
+#define ppix(pimg, row, col) (pimg->pixels[(row) * pimg->width + (col)])
 
-//void set_dmin(unsigned* dmin, int row, int col, int i, int j) {
-//	int h = abs(row - i);
-//	int w = abs(col - j);
-//	int v = h + w;
-//	if (*dmin == 0)
-//		*dmin = v;
-//	else if (*dmin > v)
-//		*dmin = v;
-//}
+void set_depth(Image* pimage, Image* pdist, int row, int col) {
+	int color = ppix(pimage, row, col);
 
-unsigned get_depth(int row, int col, int r, unsigned colour, Image image) {
-	int i, j;
-	unsigned dmin = 0;
-	int st_col = col - r;
-	int end_col = col + r;
-
-	if (row - r < 0) return row + 1;
-	if (row + r >= image.height) return image.height - row;
-	if (col - r < 0) return col + 1;
-	if (col + r >= image.width) return image.width - col;
-	for (i = row - r; i <= row + r; i++) {
-		if (i == (row - r) || i == (row + r)) {
-			for (j = st_col; j <= end_col; j++)
-				if (colour != pix(image, i, j))
-					set_dmin(dmin, row, col, i, j);
-		} else {
-			if (colour != pix(image, i, st_col))
-				set_dmin(dmin, row, col, i, st_col);
-			if (colour != pix(image, i, end_col))
-				set_dmin(dmin, row, col, i, end_col);
-		}
+	if (ppix(pimage, row - 1, col) == color &&
+		ppix(pimage, row + 1, col) == color &&
+		ppix(pimage, row, col - 1) == color &&
+		ppix(pimage, row, col + 1) == color
+		) {
+		ppix(pdist, row, col) = 1 + min(
+			min(ppix(pdist, row - 1, col), ppix(pdist, row + 1, col)),
+			min(ppix(pdist, row, col - 1), ppix(pdist, row, col + 1))
+		);
+	} else {
+		ppix(pdist, row, col) = 1;
 	}
-	return dmin;
 }
+
 
 unsigned_array central_pixels(Image image, unsigned colour) {
 	unsigned_array res = {NULL, 0};
-	unsigned i, j, k, res_cap = 1024;
+	unsigned res_cap = 1024;
+	unsigned i, row, col, l;
 	unsigned dmax = 0;
+	unsigned dmaxval = image.width * image.height;
+	unsigned* dstbuff = calloc(image.width * image.height, sizeof(unsigned));
+	Image dist = { dstbuff, image.width, image.height };
 
+	//printf("dist.width=%d, dist.height=%d\n", dist.width, dist.height);
+	//printf("---=== 1 ===---\n");
+	for (i = 0; i < (dist.width * dist.height); i++)
+		dist.pixels[i] = dmaxval;
+	//printf("---=== 1.a ===---\n");
+	for (col = 0; col < dist.width; col++) {
+		pix(dist, 0, col) = 1;
+		//printf("---=== 1.a.1 (col=%d) ===---\n", col);
+		pix(dist, dist.height - 1, col) = 1;
+		//printf("---=== 1.a.2 (col=%d) ===---\n", col);
+	}
+	//printf("---=== 1.b ===---\n");
+	for (row = 1; row < (dist.height - 1); row++)
+		pix(dist, row, 0) = pix(dist, row, dist.width - 1) = 1;
+
+	//printf("---=== 2 ===---\n");
+	for (l = 1; l < min(dist.width, dist.height) / 2 + 1; l++) {
+		for (col = l; col < dist.width - l; col++) {
+			set_depth(&image, &dist, l, col);
+			set_depth(&image, &dist, dist.height - l - 1, col);
+		}
+		for (row = l; row < dist.height - l; row++) {
+			set_depth(&image, &dist, row, l);
+			set_depth(&image, &dist, row, dist.width - l - 1);
+		}
+	}
+	for (l = min(dist.width, dist.height) / 2; l >= 1; l--) {
+		for (col = dist.width - l - 1; col >= l; col--) {
+			set_depth(&image, &dist, l, col);
+			set_depth(&image, &dist, dist.height - l - 1, col);
+		}
+		for (row = dist.height - l - 1; row >= l; row--) {
+			set_depth(&image, &dist, row, l);
+			set_depth(&image, &dist, row, dist.width - l - 1);
+		}
+	}
+
+	//printf("---=== 3 ===---\n");
 	res.values = calloc(res_cap, sizeof(unsigned));
-	for (i = 0; i < image.height; i++) {
-		for (j = 0; j < image.width; j++) {
-			if (colour == pix(image, i, j)) {
-				unsigned bord = border_disance(i, j, image);
-				unsigned k0 = 0, d0 = 0, depth = 0;
-				if (bord == 1) {
-					depth = bord;
-					//printf("central_pixels: depth = bord: %d\n", depth);
-				} else {
-					for (k = 1; k < bord; k++) {
-						unsigned d = get_depth(i, j, k, colour, image);
-						//printf("central_pixels: [%d,%d](%d): %d\n", i, j, k, d);
-						if (d0 == 0 && d != 0) {
-							d0 = d;
-							k0 = k;
-							//printf("central_pixels: k0 = %d, d0 = %d\n", k0, d0);
-						}
-						if (d != 0) {
-							if ((k0 != 0 && d < d0 && d < (k + 2)) || (k0 == 0 && d < (k + 2))) {
-								depth = d;
-								//printf("central_pixels: depth = d: %d (break)\n", depth);
-								break;
-							}
-						}
-					}
-					if (!depth || depth > bord) {
-						if (d0 < bord) {
-							depth = d0;
-							//printf("central_pixels: depth = d0: %d(?)\n", depth);
-						} else {
-							depth = bord;
-							//printf("central_pixels: depth = bord: %d(?)\n", depth);
-						}
-					}
+	for (i = 0; i < (dist.width * dist.height); i++) {
+		if (image.pixels[i] == colour) {
+			if (dist.pixels[i] > dmax) {
+				dmax = dist.pixels[i];
+				res.size = 0;
+				res.values[res.size] = i;
+				res.size++;
+			} else if (dist.pixels[i] == dmax) {
+				if (res.size >= res_cap) {
+					unsigned tcap = res_cap * 2;
+					unsigned* buff = calloc(tcap, sizeof(unsigned));
+					memcpy(buff, res.values, sizeof(unsigned) * res_cap);
+					free(res.values);
+					res.values = buff;
+					res_cap = tcap;
 				}
-				if (depth > dmax) {
-					//printf("central_pixels: new max depth: %d (prev=%d) [%d,%d]: %d\n", depth, dmax, i, j, i * image.width + j);
-					dmax = depth;
-					res.size = 0;
-					res.values[res.size] = i * image.width + j;
-					res.size++;
-				} else if (depth == dmax) {
-					if (res.size >= res_cap) {
-						unsigned tcap = res_cap * 2;
-						unsigned* buff = calloc(tcap, sizeof(unsigned));
-						memcpy(buff, res.values, sizeof(unsigned) * res_cap);
-						free(res.values);
-						res.values = buff;
-						res_cap = tcap;
-					}
-					//printf("central_pixels: add to depth: %d [%d,%d](%d): %d\n", depth, i, j, res.size, i * image.width + j);
-					res.values[res.size] = i * image.width + j;
-					res.size++;
-				}
+				res.values[res.size] = i;
+				res.size++;
 			}
 		}
 	}
-	/*
-	if (res.size == 7 && res.values[0] == 642) {
-		printf("{%d,%d}; color: %d\n", image.height, image.width, colour);
-		for (i = 0; i < image.height; i++) {
-			for (j = 0; j < image.width; j++) {
-				if (j > 0) printf(",");
-				printf("%d", pix(image, i, j));
+	//printf("---=== 4 ===---\n");
+
+	if (res.size == 2 && res.values[0] == 16 && res.values[1] == 17) {
+		printf("{%d,%d}; dmax=%d; color: %d\n", image.height, image.width, dmax, colour);
+		for (row = 0; row < image.height; row++) {
+			for (col = 0; col < image.width; col++) {
+				if (col > 0) printf(",");
+				printf("%d", pix(image, row, col));
+			}
+			printf("\n");
+		}
+		printf("============================\n");
+		for (row = 0; row < image.height; row++) {
+			for (col = 0; col < image.width; col++) {
+				if (col > 0) printf(",");
+				printf("%02d", pix(dist, row, col));
 			}
 			printf("\n");
 		}
 	}
-	*/
+
+	free(dstbuff);
 	return res;
 }
 
@@ -231,10 +210,43 @@ int main() {
 						//                ^
 						//                6
 
+			 //                      2
+             // {7,7}                V
+	unsigned image_data5[] = {40,40,40,40,40,40,40,
+							  40,40,40,40,40,40,41,
+							  40,40,40,40,40,41,41, // 2
+							  40,40,40,40,41,41,41,
+							  40,40,40,41,41,41,41,
+							  40,40,41,41,41,41,41,
+							  40,41,41,41,41,41,41};
+
+
+// {8,8}; dmax=3; color: 5
+	unsigned image_data5[] = {6,6,6,6,6,6,6,6,
+							  5,6,6,6,6,6,6,6,
+							  5,5,6,6,6,6,6,6,
+							  5,5,5,6,6,6,6,6,
+							  5,5,5,5,6,6,6,6,
+							  5,5,5,5,5,6,6,6, // 5
+							  5,5,5,5,5,5,6,6,
+							  5,5,5,5,5,5,5,6};
+						//        ^
+						//        2
+//============================
+//01,01,01,01,01,01,01,01
+//01,01,02,02,02,02,02,01
+//01,01,01,02,03,03,02,01
+//01,02,01,01,02,03,02,01
+//01,02,02,01,01,02,02,01
+//01,02,03,03,01,01,02,01
+//01,02,02,02,02,01,01,01
+//01,01,01,01,01,01,01,01
+
 	Image image = { image_data, 10, 6 };
 	Image image2 = { image_data2, 8, 8 };
 	Image image3 = { image_data3, 29, 29 };
 	Image image4 = { image_data4, 29, 29 };
+	Image image5 = { image_data5, 7, 7 };
 	unsigned_array res;
 	int i;
 
@@ -272,7 +284,7 @@ int main() {
 /*
 
 	exit(1);
-*/
+
 	printf("{ ");
 	res = central_pixels(image, 1);
 	for (i = 0; i < res.size; i++) {
@@ -333,6 +345,14 @@ int main() {
 
 	printf("{ ");
 	res = central_pixels(image4, 5);
+	for (i = 0; i < res.size; i++) {
+		if (i > 0) printf(", ");
+		printf("%u", res.values[i]);
+	}
+	printf(" }\n");
+*/
+	printf("{ ");
+	res = central_pixels(image5, 40);
 	for (i = 0; i < res.size; i++) {
 		if (i > 0) printf(", ");
 		printf("%u", res.values[i]);

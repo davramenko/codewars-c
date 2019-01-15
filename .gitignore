@@ -1,3 +1,4 @@
 Debug
 vlib
 vlib.sln
+*-failed.c
